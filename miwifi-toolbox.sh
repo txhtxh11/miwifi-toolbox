@@ -113,8 +113,16 @@ detect_env() {
   fi
 
   # WAN 接口
-  WAN_IF=$(uci get network.wan.ifname 2>/dev/null)
-  [ -z "$WAN_IF" ] && WAN_IF=$(uci get network.wan.device 2>/dev/null)
+  # 优先用默认路由实际走的接口（中继模式下会变成无线 STA 接口，如 wl1/apcli0/wwan）
+  WAN_IF=""
+  default_if=$(ip route 2>/dev/null | awk '/^default/{print $5; exit}')
+  if [ -n "$default_if" ] && [ "$default_if" != "br-lan" ] && [ -e "/sys/class/net/$default_if" ]; then
+    WAN_IF="$default_if"
+  fi
+  if [ -z "$WAN_IF" ]; then
+    WAN_IF=$(uci get network.wan.ifname 2>/dev/null)
+    [ -z "$WAN_IF" ] && WAN_IF=$(uci get network.wan.device 2>/dev/null)
+  fi
   [ -z "$WAN_IF" ] && WAN_IF="eth0.2"
 
   # WAN 防火墙 zone 索引（R1D/R2D 一般都是 1，但按名字查找更稳）
@@ -162,7 +170,9 @@ show_status() {
   say "  架构/内核 : $ARCH / $KERNEL"
   say "  固件      : $(grep -h DISTRIB_DESCRIPTION /etc/openwrt_release 2>/dev/null | cut -d'"' -f2)"
   say "  数据目录  : ${DATA_DIR:-未找到}"
-  say "  WAN 接口  : $WAN_IF"
+  say "  WAN 接口  : $WAN_IF $([ -e "/sys/class/net/$WAN_IF" ] && echo '(存在)' || echo '(不存在!)')"
+  mode=$(nvram get mode 2>/dev/null)
+  [ -n "$mode" ] && say "  工作模式  : $mode"
   say "  Entware源 : ${ENTWARE_FEED:-不支持的架构}"
   say ""
 
