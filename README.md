@@ -15,7 +15,7 @@
 | 7 | 卸载 MIXBOX | 官方 uninstall.sh |
 | 8 | 一键全部 | 依次执行 2+3+4+5 |
 | 9 | 回滚 | 恢复最近的 Samba / 防火墙备份 |
-| 10 | 免登录白名单 | 把当前 SSH 来源电脑的 MAC 写入 `nonLoginMac.cfg`（小米自带共享需要它才可写） |
+| 10 | 免登录白名单（可选） | 手动填写某设备的 MAC，并给出查询 MAC 的方法；只影响小米自带共享，脚本的 `[R1D]`/`[R2D]` 共享不需要它 |
 
 ## 一键运行（SSH 到路由器）
 
@@ -43,7 +43,7 @@ sh /tmp/r1d.sh mixbox-update       # 更新 MIXBOX
 sh /tmp/r1d.sh mixbox-uninstall    # 卸载 MIXBOX
 sh /tmp/r1d.sh all                 # 一键全部
 sh /tmp/r1d.sh rollback            # 回滚
-sh /tmp/r1d.sh whitelist           # 把本机 MAC 加入免登录白名单
+sh /tmp/r1d.sh whitelist           # 可选：手动添加 MAC 到免登录白名单
 ```
 
 交互式命令会先问 `[y/N]`，可用 `printf 'y\n' | sh /tmp/r1d.sh entware` 自动确认。
@@ -105,7 +105,7 @@ R2D 与 R1D 同属小米硬盘路由，官方开发版 + SSH 后操作方式基�
 R2D 有两种共享方式，任选：
 
 1. **脚本的 `[R2D]` 共享**（推荐）：绕过白名单，guest 直接可读写 `\\<IP>\R2D`；
-2. **小米自带共享 + 白名单**：菜单 `10` 把本机 MAC 写进 `nonLoginMac.cfg`，之后 `\\<IP>\共享`、`\\<IP>\XiaoMi` 也能写。
+2. **小米自带共享 + 白名单（可选）**：菜单 `10` 手动把某台设备的 MAC 写进 `nonLoginMac.cfg`，之后 `\\<IP>\共享`、`\\<IP>\XiaoMi` 也能写。脚本会打印查询 MAC 的方法（Windows `ipconfig /all`、手机 WiFi 设置、`cat /tmp/dhcp.leases`、`cat /proc/net/arp`），并列出当前 ARP 在线设备供对照。
 
 ## 注意事项
 
