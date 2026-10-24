@@ -451,7 +451,7 @@ EOF
   for f in "$SMB_CONF" "$SMB_TPL"; do
     [ -n "$f" ] && [ -f "$f" ] || continue
     awk -v sec="[$SHARE_NAME]" '
-      $0 == sec { print; print "\tveto files = /.filetransfer_tmp/.systemconfig/.upload_tmp/.sysapihttpd/.swapfiles/"; print "\tdelete veto files = yes"; print "\thide dot files = yes"; insec=1; next }
+      $0 == sec { print; print "\tveto files = /.filetransfer_tmp/.systemconfig/.upload_tmp/.sysapihttpd/.swapfiles/mixbox/lost+found/"; print "\tdelete veto files = yes"; print "\thide dot files = yes"; insec=1; next }
       /^\[/ { insec=0 }
       insec && /^\tveto files =/ { next }
       insec && /^\tdelete veto files =/ { next }
@@ -459,7 +459,7 @@ EOF
       { print }
     ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   done
-  ok "隐藏目录已屏蔽 (.filetransfer_tmp / .systemconfig / .upload_tmp / .sysapihttpd / .swapfiles)"
+  ok "隐藏目录已屏蔽 (.filetransfer_tmp / .systemconfig / .upload_tmp / .sysapihttpd / .swapfiles / mixbox / lost+found)"
 
   /etc/init.d/samba restart >/dev/null 2>&1 && ok "Samba 已重启" || warn "Samba 重启失败"
   sleep 2
