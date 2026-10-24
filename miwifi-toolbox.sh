@@ -136,14 +136,22 @@ detect_env() {
   done
   [ -z "$WAN_ZONE" ] && WAN_ZONE=1
 
-  # MIXBOX 安装位置（硬盘优先）
+  # MIXBOX 安装位置：优先选独立的硬盘挂载点（R2D 的 /userdisk 是闪存，/userdisk/data 才是硬盘）
   MB_ROOT=""
   MB_DATA=""
-  if [ -d /userdisk ]; then
+  for cand in /userdisk/data /userdisk /extdisks/sda1; do
+    [ -d "$cand" ] || continue
+    if mount 2>/dev/null | grep -q " on $cand "; then
+      MB_ROOT="$cand"; MB_DATA="$cand"; break
+    fi
+  done
+  if [ -z "$MB_ROOT" ] && [ -d /userdisk ]; then
     MB_ROOT="/userdisk"; MB_DATA="/userdisk/data"
-  elif [ -d /extdisks/sda1 ]; then
+  elif [ -z "$MB_ROOT" ] && [ -d /extdisks/sda1 ]; then
     MB_ROOT="/extdisks/sda1"; MB_DATA="/extdisks/sda1"
   fi
+  # 数据目录兜底：R2D 的 /userdisk 是闪存，真正数据在 /userdisk/data
+  if [ -d /userdisk/data ]; then DATA_DIR="/userdisk/data"; fi
 
   # Entware feed
   case "$ARCH" in
@@ -200,7 +208,7 @@ show_status() {
   fi
 
   # 开机挂载
-  if [ -f /etc/rc.local ] && grep -q 'mount -o bind /userdisk/opt /opt' /etc/rc.local 2>/dev/null; then
+  if [ -f /etc/rc.local ] && grep -qE 'userdisk/opt"?[[:space:]]+/opt' /etc/rc.local 2>/dev/null; then
     ok "开机自动挂载已配置"
   else
     warn "开机自动挂载未配置"
@@ -234,20 +242,27 @@ show_status() {
     warn "共享 [$SHARE_NAME] 不存在"
   fi
 
-  # 免登录白名单（小米自带共享的 MAC 白名单）
-  WL="/userdisk/datacenterConfig/nonLoginMac.cfg"
-  if [ -f "$WL" ]; then
+  # 免登录白名单（小米自带共享的 MAC 白名单；R2D 路径可能不同）
+  WL=""
+  for p in /userdisk/datacenterConfig/nonLoginMac.cfg /userdisk/data/datacenterConfig/nonLoginMac.cfg; do
+    [ -f "$p" ] && WL="$p" && break
+  done
+  if [ -n "$WL" ]; then
     n=$(grep -c ':' "$WL" 2>/dev/null)
-    ok "免登录白名单: ${n:-0} 个 MAC"
+    ok "免登录白名单: ${n:-0} 个 MAC ($WL)"
   else
     warn "免登录白名单文件不存在"
   fi
 
-  # MIXBOX
-  if [ -n "$MB_ROOT" ] && { [ -d "$MB_ROOT/mixbox" ] || [ -L /etc/mixbox ]; }; then
-    ver=$("$MB_ROOT/mixbox/bin/mbdb" get mixbox.main.version 2>/dev/null)
-    [ -z "$ver" ] && ver=$(grep '^version=' "$MB_ROOT/mixbox/config/mixbox.uci" 2>/dev/null | cut -d= -f2)
-    ok "MIXBOX 已安装 (${ver:-未知版本}) @ $MB_ROOT/mixbox"
+  # MIXBOX（必须真的能执行，排除悬空软链）
+  MP=""
+  for p in "$MB_ROOT/mixbox" /userdisk/data/mixbox /userdisk/mixbox /extdisks/sda1/mixbox; do
+    [ -x "$p/bin/mixbox" ] && MP="$p" && break
+  done
+  if [ -n "$MP" ]; then
+    ver=$("$MP/bin/mbdb" get mixbox.main.version 2>/dev/null)
+    [ -z "$ver" ] && ver=$(grep '^version=' "$MP/config/mixbox.uci" 2>/dev/null | cut -d= -f2)
+    ok "MIXBOX 已安装 (${ver:-未知版本}) @ $MP"
   else
     warn "MIXBOX 未安装"
   fi
@@ -274,7 +289,7 @@ ensure_path_and_rc() {
   fi
 
   # 开机挂载
-  if [ -f /etc/rc.local ] && grep -q 'mount -o bind /userdisk/opt /opt' /etc/rc.local 2>/dev/null; then
+  if [ -f /etc/rc.local ] && grep -qE 'userdisk/opt"?[[:space:]]+/opt' /etc/rc.local 2>/dev/null; then
     ok "开机自动挂载已配置"
   else
     say "  写入 /etc/rc.local 开机挂载..."
@@ -432,16 +447,19 @@ EOF
     ok "共享 [$SHARE_NAME] 已添加"
   fi
 
-  # veto 隐藏目录
+  # veto 隐藏目录（幂等：每次重写，R2D 会多出 .sysapihttpd / .swapfiles）
   for f in "$SMB_CONF" "$SMB_TPL"; do
     [ -n "$f" ] && [ -f "$f" ] || continue
-    grep -q 'veto files = /.filetransfer_tmp/' "$f" 2>/dev/null && continue
     awk -v sec="[$SHARE_NAME]" '
-      $0 == sec { print; print "\tveto files = /.filetransfer_tmp/.systemconfig/.upload_tmp/"; print "\tdelete veto files = yes"; print "\thide dot files = yes"; next }
+      $0 == sec { print; print "\tveto files = /.filetransfer_tmp/.systemconfig/.upload_tmp/.sysapihttpd/.swapfiles/"; print "\tdelete veto files = yes"; print "\thide dot files = yes"; insec=1; next }
+      /^\[/ { insec=0 }
+      insec && /^\tveto files =/ { next }
+      insec && /^\tdelete veto files =/ { next }
+      insec && /^\thide dot files =/ { next }
       { print }
     ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
   done
-  ok "隐藏目录已屏蔽 (.filetransfer_tmp / .systemconfig / .upload_tmp)"
+  ok "隐藏目录已屏蔽 (.filetransfer_tmp / .systemconfig / .upload_tmp / .sysapihttpd / .swapfiles)"
 
   /etc/init.d/samba restart >/dev/null 2>&1 && ok "Samba 已重启" || warn "Samba 重启失败"
   sleep 2
@@ -459,10 +477,16 @@ do_whitelist() {
   line
   say "  免登录白名单（可选，自动识别或手动填写）"
   line
-  WL="/userdisk/datacenterConfig/nonLoginMac.cfg"
-  if [ ! -f "$WL" ]; then
-    err "找不到 $WL（非小米路由或固件不同）"
+  WL=""
+  for p in /userdisk/datacenterConfig /userdisk/data/datacenterConfig; do
+    [ -d "$p" ] && { WL="$p/nonLoginMac.cfg"; break; }
+  done
+  if [ -z "$WL" ]; then
+    err "找不到 datacenterConfig 目录（非小米路由或固件不同）"
     return 1
+  fi
+  if [ ! -f "$WL" ]; then
+    touch "$WL" 2>/dev/null || { err "无法创建 $WL"; return 1; }
   fi
 
   say "  作用: 小米自带共享（共享/XiaoMi 等）默认只读或拒绝，"
@@ -532,7 +556,11 @@ do_mixbox_install() {
     err "找不到可写的硬盘目录（/userdisk 或 /extdisks/sda1），无法安装"
     return 1
   fi
-  if [ -d "$MB_ROOT/mixbox" ] || [ -L /etc/mixbox ]; then
+  if [ -L /etc/mixbox ] && [ ! -e /etc/mixbox ]; then
+    warn "/etc/mixbox 是悬空软链（指向不存在的目录），先删除"
+    rm -f /etc/mixbox
+  fi
+  if [ -x "$MB_ROOT/mixbox/bin/mixbox" ] || { [ -L /etc/mixbox ] && [ -e /etc/mixbox ]; }; then
     ok "MIXBOX 已安装，跳过（需要重装请先卸载）"
     return 0
   fi
