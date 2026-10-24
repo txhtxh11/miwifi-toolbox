@@ -620,7 +620,7 @@ menu() {
     printf '  7) 卸载 MIXBOX\n'
     printf '  8) 一键全部（2+3+4+5）\n'
     printf '  9) 回滚（恢复备份）\n'
-    printf ' 10) 免登录白名单（自动/手动）\n'
+    printf ' 10) 免登录白名单（可选，自动获取本机MAC或手动填写）\n'
     printf '  0) 退出\n'
     line
     printf '  请选择: '
