@@ -224,6 +224,15 @@ show_status() {
     warn "共享 [$SHARE_NAME] 不存在"
   fi
 
+  # 免登录白名单（小米自带共享的 MAC 白名单）
+  WL="/userdisk/datacenterConfig/nonLoginMac.cfg"
+  if [ -f "$WL" ]; then
+    n=$(grep -c ':' "$WL" 2>/dev/null)
+    ok "免登录白名单: ${n:-0} 个 MAC"
+  else
+    warn "免登录白名单文件不存在"
+  fi
+
   # MIXBOX
   if [ -n "$MB_ROOT" ] && { [ -d "$MB_ROOT/mixbox" ] || [ -L /etc/mixbox ]; }; then
     ver=$("$MB_ROOT/mixbox/bin/mbdb" get mixbox.main.version 2>/dev/null)
@@ -434,6 +443,48 @@ EOF
 # ---------- 4. MIXBOX ----------
 MIXBOX_URL="https://gcore.jsdelivr.net/gh/monlor/mbfiles"
 
+# ---------- 免登录白名单（小米自带共享用） ----------
+do_whitelist() {
+  detect_env
+  line
+  say "  添加本机 MAC 到免登录白名单"
+  line
+  WL="/userdisk/datacenterConfig/nonLoginMac.cfg"
+  if [ ! -f "$WL" ]; then
+    err "找不到 $WL（非小米路由或固件不同）"
+    return 1
+  fi
+
+  client_ip=$(printf '%s' "${SSH_CONNECTION:-}" | awk '{print $1}')
+  [ -z "$client_ip" ] && client_ip=$(printf '%s' "${SSH_CLIENT:-}" | awk '{print $1}')
+  mac=""
+  if [ -n "$client_ip" ]; then
+    mac=$(awk -v ip="$client_ip" '$1==ip {print $4}' /proc/net/arp 2>/dev/null | head -n1)
+    [ -n "$mac" ] && say "  SSH 来源: $client_ip"
+  fi
+  if [ -z "$mac" ]; then
+    say "  无法自动识别 MAC，请手动输入（格式 42:95:91:f6:f4:08）:"
+    printf '  MAC: '
+    read mac
+  fi
+  mac=$(printf '%s' "$mac" | tr 'A-Z' 'a-z')
+  case "$mac" in
+    [0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]:[0-9a-f][0-9a-f]) : ;;
+    *) err "MAC 格式不对: $mac"; return 1 ;;
+  esac
+
+  if grep -qi "$mac" "$WL" 2>/dev/null; then
+    ok "已在白名单: $mac"
+    return 0
+  fi
+  confirm "把 $mac 加入免登录白名单?" || return 1
+  backup_file "$WL"
+  printf '%s\n' "$mac" >> "$WL"
+  ok "已添加: $mac"
+  /etc/init.d/samba restart >/dev/null 2>&1 && ok "Samba 已重启"
+  say "  提示: 小米自带共享（如 XiaoMi/共享）现在对本机免登录可写"
+}
+
 do_mixbox_install() {
   detect_env
   line
@@ -541,6 +592,7 @@ menu() {
     printf '  7) 卸载 MIXBOX\n'
     printf '  8) 一键全部（2+3+4+5）\n'
     printf '  9) 回滚（恢复备份）\n'
+    printf ' 10) 添加本机 MAC 到免登录白名单\n'
     printf '  0) 退出\n'
     line
     printf '  请选择: '
@@ -555,6 +607,7 @@ menu() {
       7) do_mixbox_uninstall ;;
       8) do_all ;;
       9) do_rollback ;;
+      10) do_whitelist ;;
       0|q|Q) exit 0 ;;
       *) warn "无效选择" ;;
     esac
@@ -575,6 +628,7 @@ case "${1:-}" in
   mixbox-uninstall)do_mixbox_uninstall ;;
   all)             do_all ;;
   rollback)        do_rollback ;;
+  whitelist)       do_whitelist ;;
   "" )             menu ;;
-  *) say "用法: $0 {status|entware|lan|smb|mixbox|mixbox-update|mixbox-uninstall|all|rollback}"; exit 1 ;;
+  *) say "用法: $0 {status|entware|lan|smb|mixbox|mixbox-update|mixbox-uninstall|all|rollback|whitelist}"; exit 1 ;;
 esac

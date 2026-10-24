@@ -15,6 +15,7 @@
 | 7 | 卸载 MIXBOX | 官方 uninstall.sh |
 | 8 | 一键全部 | 依次执行 2+3+4+5 |
 | 9 | 回滚 | 恢复最近的 Samba / 防火墙备份 |
+| 10 | 免登录白名单 | 把当前 SSH 来源电脑的 MAC 写入 `nonLoginMac.cfg`（小米自带共享需要它才可写） |
 
 ## 一键运行（SSH 到路由器）
 
@@ -42,6 +43,7 @@ sh /tmp/r1d.sh mixbox-update       # 更新 MIXBOX
 sh /tmp/r1d.sh mixbox-uninstall    # 卸载 MIXBOX
 sh /tmp/r1d.sh all                 # 一键全部
 sh /tmp/r1d.sh rollback            # 回滚
+sh /tmp/r1d.sh whitelist           # 把本机 MAC 加入免登录白名单
 ```
 
 交互式命令会先问 `[y/N]`，可用 `printf 'y\n' | sh /tmp/r1d.sh entware` 自动确认。
@@ -86,6 +88,24 @@ sh /tmp/r1d.sh rollback            # 回滚
 | WAN 接口 | `uci get network.wan.ifname` | eth0.2 | 同 |
 | WAN 防火墙 zone | 按 `firewall.@zone[n].name=wan` 查找 | zone 1 | 自动 |
 | MIXBOX 位置 | `/userdisk` → `/extdisks/sda1` | /userdisk | 同 |
+
+## R2D 差异说明
+
+R2D 与 R1D 同属小米硬盘路由，官方开发版 + SSH 后操作方式基本一致，但也有区别：
+
+| 项目 | R1D | R2D |
+|---|---|---|
+| 固件 | MiWiFi 2.25.213（AA 12.09） | 同代开发版 |
+| 数据盘 | `/userdisk/data` | 同（脚本自动探测，找不到则用 `/userdisk` 或 `/extdisks/sda1`） |
+| 防火墙 | zone name=wan，REJECT→ACCEPT | 同（脚本按 `name=wan` 定位，不写死索引） |
+| Samba 模板 | `/etc/samba/smb.conf.template` | 同（有则改，无则只改生效文件并提示） |
+| 内置共享写权限 | 需要 MAC 白名单 `nonLoginMac.cfg` | **同样需要**（R2D 教程也是改这个文件） |
+| 外网 IP 变化 | 重启 Samba 生效 | **必须重启 Samba**（脚本配置完会自动重启） |
+
+R2D 有两种共享方式，任选：
+
+1. **脚本的 `[R2D]` 共享**（推荐）：绕过白名单，guest 直接可读写 `\\<IP>\R2D`；
+2. **小米自带共享 + 白名单**：菜单 `10` 把本机 MAC 写进 `nonLoginMac.cfg`，之后 `\\<IP>\共享`、`\\<IP>\XiaoMi` 也能写。
 
 ## 注意事项
 
