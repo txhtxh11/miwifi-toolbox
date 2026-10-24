@@ -37,6 +37,34 @@ warn() { printf '  [!!] %s\n' "$*"; }
 err()  { printf '  [XX] %s\n' "$*"; }
 line() { printf '%s\n' "------------------------------------------------------------"; }
 
+# 重新加载 /etc/profile，让**脚本自己**立刻用上新的 PATH。
+# 注意：脚本改不了你已打开的那个终端的 PATH，退出后仍需 source /etc/profile 或重连。
+reload_env() {
+  [ -f /etc/profile ] && . /etc/profile >/dev/null 2>&1
+  case ":$PATH:" in
+    *:/opt/bin:*) : ;;
+    *) PATH="/opt/bin:/opt/sbin:$PATH"; export PATH ;;
+  esac
+}
+
+# 启动时记下用户当前终端的 PATH 是否已经正确，用来决定结尾要不要提示
+case ":$PATH:" in
+  *:/opt/bin:*) PATH_WAS_OK=1 ;;
+  *)            PATH_WAS_OK=0 ;;
+esac
+
+# 提示用户手动刷新终端（只提示一次）
+tip_reload() {
+  [ "${PATH_WAS_OK:-1}" = "1" ] && return 0
+  [ "${PATH_HINT_SHOWN:-0}" = "1" ] && return 0
+  PATH_HINT_SHOWN=1
+  say ""
+  say "  提示: 你这个 SSH 窗口的 PATH 还是旧的（脚本改不了已打开终端的变量）。"
+  say "        在这个窗口执行一次即可生效:"
+  say "            source /etc/profile"
+  say "        或者直接关掉窗口重连（新窗口会自动加载）。"
+}
+
 need_root() {
   [ "$(id -u)" = "0" ] || { err "请用 root 运行（ssh root@路由器IP）"; exit 1; }
 }
@@ -136,15 +164,36 @@ detect_env() {
   done
   [ -z "$WAN_ZONE" ] && WAN_ZONE=1
 
-  # MIXBOX 安装位置：优先选独立的硬盘挂载点（R2D 的 /userdisk 是闪存，/userdisk/data 才是硬盘）
+  # MIXBOX 安装位置：
+  # 1) 已装过就沿用原位置（否则状态/更新/卸载会指错目录）
+  # 2) 没装过则优先选独立的硬盘挂载点（R2D 的 /userdisk 是闪存，/userdisk/data 才是硬盘）
   MB_ROOT=""
   MB_DATA=""
-  for cand in /userdisk/data /userdisk /extdisks/sda1; do
-    [ -d "$cand" ] || continue
-    if mount 2>/dev/null | grep -q " on $cand "; then
-      MB_ROOT="$cand"; MB_DATA="$cand"; break
-    fi
-  done
+  # 1) 已装过：以 /etc/mixbox 软链指向的目录为准
+  _real=$(readlink -f /etc/mixbox 2>/dev/null)
+  case "$_real" in
+    */mixbox) MB_ROOT="${_real%/mixbox}"; MB_DATA="$MB_ROOT" ;;
+  esac
+  # 2) 没软链但装过：找现成的 bin/mixbox
+  if [ -z "$MB_ROOT" ]; then
+    for cand in /userdisk/data /userdisk /extdisks/sda1; do
+      [ -x "$cand/mixbox/bin/mixbox" ] && { MB_ROOT="$cand"; MB_DATA="$cand"; break; }
+    done
+  fi
+  # 3) 没装过：优先选独立的硬盘挂载点（R2D 的 /userdisk 是闪存，/userdisk/data 才是硬盘）
+  if [ -z "$MB_ROOT" ]; then
+    for cand in /userdisk/data /userdisk /extdisks/sda1; do
+      [ -d "$cand" ] || continue
+      if mount 2>/dev/null | grep -q " on $cand "; then
+        MB_ROOT="$cand"; MB_DATA="$cand"; break
+      fi
+    done
+  fi
+  # 已装过的用户文件目录以 MIXBOX 自己记录的为准
+  if [ -n "$MB_ROOT" ] && [ -x "$MB_ROOT/mixbox/bin/mbdb" ]; then
+    _disk=$("$MB_ROOT/mixbox/bin/mbdb" get mixbox.main.mbdisk 2>/dev/null)
+    [ -n "$_disk" ] && [ -d "$_disk" ] && MB_DATA="$_disk"
+  fi
   if [ -z "$MB_ROOT" ] && [ -d /userdisk ]; then
     MB_ROOT="/userdisk"; MB_DATA="/userdisk/data"
   elif [ -z "$MB_ROOT" ] && [ -d /extdisks/sda1 ]; then
@@ -308,8 +357,7 @@ ensure_path_and_rc() {
     ok "开机自动挂载已写入"
   fi
 
-  PATH=/opt/bin:/opt/sbin:$PATH
-  export PATH
+  reload_env
 }
 
 do_entware() {
@@ -582,6 +630,7 @@ do_mixbox_install() {
   fi
   if [ -x "$MB_ROOT/mixbox/bin/mixbox" ] || { [ -L /etc/mixbox ] && [ -e /etc/mixbox ]; }; then
     ok "MIXBOX 已安装，跳过（需要重装请先卸载）"
+    reload_env
     return 0
   fi
   confirm "从 $MIXBOX_URL 安装 MIXBOX 到 $MB_ROOT，继续?" || return 1
@@ -591,6 +640,7 @@ do_mixbox_install() {
   if printf '\n%s\n%s\n' "$MB_ROOT" "$MB_DATA" | MB_URL="$MIXBOX_URL" sh /tmp/mb_install.sh >/tmp/mixbox_install.log 2>&1; then
     if [ -d "$MB_ROOT/mixbox" ]; then
       mb_set_url
+      reload_env
       ok "MIXBOX 安装完成 @ $MB_ROOT/mixbox（插件源已固定到 fork）"
       say "  用法: 重新登录 SSH 后执行 mixbox"
     else
@@ -610,7 +660,7 @@ do_mixbox_update() {
   say "  更新 MIXBOX"
   line
   mb_fetch update.sh /tmp/mb_update.sh || { err "下载 update.sh 失败（源不可用）"; return 1; }
-  MB_URL="$MIXBOX_URL" sh /tmp/mb_update.sh && source /etc/profile 2>/dev/null
+  MB_URL="$MIXBOX_URL" sh /tmp/mb_update.sh && reload_env
   mb_set_url
   ok "更新完成（插件源已固定到 fork）"
 }
@@ -707,6 +757,7 @@ menu() {
       0|q|Q) exit 0 ;;
       *) warn "无效选择" ;;
     esac
+    tip_reload
   done
 }
 
@@ -728,3 +779,5 @@ case "${1:-}" in
   "" )             menu ;;
   *) say "用法: $0 {status|entware|lan|smb|mixbox|mixbox-update|mixbox-uninstall|all|rollback|whitelist}"; exit 1 ;;
 esac
+
+tip_reload

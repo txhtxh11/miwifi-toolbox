@@ -51,6 +51,19 @@ sh /tmp/r1d.sh whitelist           # 可选：自动识别或手动输入 MAC �
 
 交互式命令会先问 `[y/N]`，可用 `printf 'y\n' | sh /tmp/r1d.sh entware` 自动确认。
 
+### PATH 什么时候生效
+
+脚本会在装完 Entware / MIXBOX 后自动 `source /etc/profile` 重新加载环境，**但那只会刷新脚本自己**——已经打开的那个 SSH 窗口里的 PATH 是登录时定下的，任何子进程都改不了它。所以脚本结束时如果你这个窗口的 PATH 还是旧的，会打印：
+
+```
+提示: 你这个 SSH 窗口的 PATH 还是旧的（脚本改不了已打开终端的变量）。
+      在这个窗口执行一次即可生效:
+          source /etc/profile
+      或者直接关掉窗口重连（新窗口会自动加载）。
+```
+
+在新窗口里 `nano` / `mixbox` 都是直接可用的，不用再手动 source。
+
 ## 状态示例
 
 ```
