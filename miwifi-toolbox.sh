@@ -9,14 +9,14 @@
 #  - 状态查询 / 回滚
 #
 #  用法:
-#    sh r1d-r2d-toolbox.sh               交互菜单
-#    sh r1d-r2d-toolbox.sh status        只看状态
-#    sh r1d-r2d-toolbox.sh entware       装 Entware+nano+开机挂载
-#    sh r1d-r2d-toolbox.sh lan           开内网访问（防火墙+Samba WAN）
-#    sh r1d-r2d-toolbox.sh smb           全盘共享 + 屏蔽隐藏目录
-#    sh r1d-r2d-toolbox.sh mixbox        装 MIXBOX
-#    sh r1d-r2d-toolbox.sh all           依次执行上面四步
-#    sh r1d-r2d-toolbox.sh rollback      还原最近的 Samba/防火墙备份
+#    sh miwifi-toolbox.sh               交互菜单
+#    sh miwifi-toolbox.sh status        只看状态
+#    sh miwifi-toolbox.sh entware       装 Entware+nano+开机挂载
+#    sh miwifi-toolbox.sh lan           开内网访问（防火墙+Samba WAN）
+#    sh miwifi-toolbox.sh smb           全盘共享 + 屏蔽隐藏目录
+#    sh miwifi-toolbox.sh mixbox        装 MIXBOX
+#    sh miwifi-toolbox.sh all           依次执行上面四步
+#    sh miwifi-toolbox.sh rollback      还原最近的 Samba/防火墙备份
 # ============================================================
 
 VERSION="1.0.0"

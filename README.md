@@ -20,13 +20,13 @@
 ## 一键运行（SSH 到路由器）
 
 ```sh
-curl -kfsSL https://cdn.jsdelivr.net/gh/txhtxh11/r1d-r2d-toolbox@main/r1d-r2d-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
+curl -kfsSL https://cdn.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@main/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
 ```
 
 如果 jsdelivr 不通，用 GitHub raw：
 
 ```sh
-curl -kfsSL https://raw.githubusercontent.com/txhtxh11/r1d-r2d-toolbox/main/r1d-r2d-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
+curl -kfsSL https://raw.githubusercontent.com/txhtxh11/miwifi-toolbox/main/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
 ```
 
 > 路由器上的 busybox `wget` 不支持 HTTPS，必须用 `curl`（R1D/R2D 自带）。
