@@ -443,11 +443,11 @@ EOF
 # ---------- 4. MIXBOX ----------
 MIXBOX_URL="https://gcore.jsdelivr.net/gh/monlor/mbfiles"
 
-# ---------- 免登录白名单（可选，手动填写） ----------
+# ---------- 免登录白名单（可选，自动/手动） ----------
 do_whitelist() {
   detect_env
   line
-  say "  免登录白名单（可选）"
+  say "  免登录白名单（可选，自动识别或手动填写）"
   line
   WL="/userdisk/datacenterConfig/nonLoginMac.cfg"
   if [ ! -f "$WL" ]; then
@@ -471,10 +471,29 @@ do_whitelist() {
   awk 'NR>1 && $4!="00:00:00:00:00:00" {printf "    %-16s %s\n", $1, $4}' /proc/net/arp 2>/dev/null | head -20
   say ""
 
-  printf '  请输入要添加的 MAC（留空=只查看，q=返回）: '
-  read mac
-  case "$mac" in
+  # 自动识别当前 SSH 来源
+  auto_mac=""
+  client_ip=$(printf '%s' "${SSH_CONNECTION:-}" | awk '{print $1}')
+  [ -z "$client_ip" ] && client_ip=$(printf '%s' "${SSH_CLIENT:-}" | awk '{print $1}')
+  if [ -n "$client_ip" ]; then
+    auto_mac=$(awk -v ip="$client_ip" '$1==ip {print $4}' /proc/net/arp 2>/dev/null | head -n1)
+  fi
+  if [ -n "$auto_mac" ]; then
+    say "  自动识别: 当前 SSH 来源 $client_ip → MAC $auto_mac"
+  else
+    warn "未能自动识别当前 SSH 来源的 MAC"
+  fi
+  say ""
+  say "  [1] 使用自动识别的 MAC${auto_mac:+ ($auto_mac)}"
+  say "  [2] 手动输入 MAC"
+  say "  [q] 返回（不做修改）"
+  printf '  选择: '
+  read opt
+  case "$opt" in
     ""|q|Q) say "  已返回，未做修改"; return 0 ;;
+    1) [ -n "$auto_mac" ] || { err "没有自动识别的 MAC，请选 2 手动输入"; return 1; }; mac="$auto_mac" ;;
+    2) printf '  请输入 MAC（格式 42:95:91:f6:f4:08）: '; read mac ;;
+    *) mac="$opt" ;;   # 直接输入 MAC 也接受
   esac
   mac=$(printf '%s' "$mac" | tr 'A-Z' 'a-z')
   case "$mac" in
@@ -601,7 +620,7 @@ menu() {
     printf '  7) 卸载 MIXBOX\n'
     printf '  8) 一键全部（2+3+4+5）\n'
     printf '  9) 回滚（恢复备份）\n'
-    printf ' 10) 免登录白名单（可选，手动填写）\n'
+    printf ' 10) 免登录白名单（自动/手动）\n'
     printf '  0) 退出\n'
     line
     printf '  请选择: '
