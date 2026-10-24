@@ -110,6 +110,24 @@ R2D 有两种共享方式，任选：
 1. **脚本的 `[R2D]` 共享**（推荐）：绕过白名单，guest 直接可读写 `\\<IP>\R2D`；
 2. **小米自带共享 + 白名单（可选）**：菜单 `10` 自动识别当前 SSH 来源的 MAC（也可手动输入）写进 `nonLoginMac.cfg`，之后 `\\<IP>\共享`、`\\<IP>\XiaoMi` 也能写。脚本会打印查询 MAC 的方法（Windows `ipconfig /all`、手机 WiFi 设置、`cat /tmp/dhcp.leases`、`cat /proc/net/arp`），并列出当前 ARP 在线设备供对照。
 
+## MIXBOX 源（防上游删库）
+
+MIXBOX 真正的文件仓是 [monlor/mbfiles](https://github.com/monlor/mbfiles)（约 4GB），上游一旦删库/改名，安装和插件下载都会失效。本脚本默认走**自己的 fork**：
+
+| 用途 | 地址 |
+|---|---|
+| 文件/插件仓（脚本默认） | `https://gcore.jsdelivr.net/gh/txhtxh11/mbfiles` |
+| 框架说明仓 fork | https://github.com/txhtxh11/mixbox |
+| 上游（仅回退用） | `https://gcore.jsdelivr.net/gh/monlor/mbfiles` |
+
+- 安装/更新时先试 fork，失败自动回退上游；
+- 装完会把 MIXBOX 的插件源 `mixbox.main.url` 固定到 fork，之后 `mixbox` 里装插件也从 fork 拉；
+- 手动改回/改动：
+  ```sh
+  /etc/mixbox/bin/mbdb set mixbox.main.url https://gcore.jsdelivr.net/gh/txhtxh11/mbfiles
+  ```
+- 卸载改用安装目录自带的 `scripts/uninstall.sh`，不再依赖上游仓库路径。
+
 ## 注意事项
 
 - **先刷开发版并开启 root SSH**（R1D 2.25.213 已验证）。

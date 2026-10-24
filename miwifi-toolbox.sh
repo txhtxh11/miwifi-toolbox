@@ -473,7 +473,23 @@ EOF
 }
 
 # ---------- 4. MIXBOX ----------
-MIXBOX_URL="https://gcore.jsdelivr.net/gh/monlor/mbfiles"
+# 用自己 fork 的 mbfiles，防止上游删库/改名导致装不上
+MIXBOX_URL="${MIXBOX_URL:-https://gcore.jsdelivr.net/gh/txhtxh11/mbfiles}"
+MIXBOX_FALLBACK="https://gcore.jsdelivr.net/gh/monlor/mbfiles"
+
+# 从主源下载文件，失败自动回退上游；$1=仓库内路径 $2=本地输出
+mb_fetch() {
+  curl -kfsSL "$MIXBOX_URL/$1" -o "$2" 2>/dev/null && [ -s "$2" ] && return 0
+  warn "主源失败，回退上游 $MIXBOX_FALLBACK"
+  curl -kfsSL "$MIXBOX_FALLBACK/$1" -o "$2" 2>/dev/null && [ -s "$2" ] && return 0
+  return 1
+}
+
+# 把插件下载源固定到自己的 fork（MIXBOX 从 mbdb 的 mixbox.main.url 取）
+mb_set_url() {
+  [ -x "$MB_ROOT/mixbox/bin/mbdb" ] || return 0
+  "$MB_ROOT/mixbox/bin/mbdb" set "mixbox.main.url=$MIXBOX_URL" >/dev/null 2>&1
+}
 
 # ---------- 免登录白名单（可选，自动/手动） ----------
 do_whitelist() {
@@ -569,10 +585,13 @@ do_mixbox_install() {
     return 0
   fi
   confirm "从 $MIXBOX_URL 安装 MIXBOX 到 $MB_ROOT，继续?" || return 1
+  say "  下载 install.sh ..."
+  mb_fetch install.sh /tmp/mb_install.sh || { err "下载 install.sh 失败（源不可用）"; return 1; }
   say "  下载并安装（安装位置 $MB_ROOT，用户目录 $MB_DATA）..."
-  if printf '\n%s\n%s\n' "$MB_ROOT" "$MB_DATA" | sh -c "$(curl -kfsSl $MIXBOX_URL/install.sh)" >/tmp/mixbox_install.log 2>&1; then
+  if printf '\n%s\n%s\n' "$MB_ROOT" "$MB_DATA" | MB_URL="$MIXBOX_URL" sh /tmp/mb_install.sh >/tmp/mixbox_install.log 2>&1; then
     if [ -d "$MB_ROOT/mixbox" ]; then
-      ok "MIXBOX 安装完成 @ $MB_ROOT/mixbox"
+      mb_set_url
+      ok "MIXBOX 安装完成 @ $MB_ROOT/mixbox（插件源已固定到 fork）"
       say "  用法: 重新登录 SSH 后执行 mixbox"
     else
       err "安装脚本执行了但目录不存在，查看 /tmp/mixbox_install.log"
@@ -590,16 +609,23 @@ do_mixbox_update() {
   line
   say "  更新 MIXBOX"
   line
-  sh -c "$(curl -kfsSl $MIXBOX_URL/update.sh)" && source /etc/profile 2>/dev/null
-  ok "更新完成"
+  mb_fetch update.sh /tmp/mb_update.sh || { err "下载 update.sh 失败（源不可用）"; return 1; }
+  MB_URL="$MIXBOX_URL" sh /tmp/mb_update.sh && source /etc/profile 2>/dev/null
+  mb_set_url
+  ok "更新完成（插件源已固定到 fork）"
 }
 
 do_mixbox_uninstall() {
   line
   say "  卸载 MIXBOX"
   line
-  confirm "确认卸载 MIXBOX（/etc/mixbox 与 /userdisk/mixbox）?" || return 1
-  sh -c "$(curl -kfsSl https://gcore.jsdelivr.net/gh/monlor/MIXBOX/apps/mixbox/scripts/uninstall.sh)"
+  confirm "确认卸载 MIXBOX（/etc/mixbox 与 $MB_ROOT/mixbox）?" || return 1
+  lu="$MB_ROOT/mixbox/scripts/uninstall.sh"
+  if [ -f "$lu" ]; then
+    printf '\n' | sh "$lu"
+  else
+    err "找不到卸载脚本 $lu（可能未安装）"; return 1
+  fi
   ok "卸载完成"
 }
 
