@@ -20,17 +20,15 @@
 ## 一键运行（SSH 到路由器）
 
 ```sh
+# 稳定版（@main，可能滞后约 12 小时）
 curl -kfsSL https://gcore.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@main/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
+
+# 刚推完想立刻拿到最新版：用提交号（jsdelivr 对提交号不做延迟缓存）
+curl -kfsSL https://gcore.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@<commit>/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
 ```
 
-如果 jsdelivr 不通，用 GitHub raw：
-
-```sh
-curl -kfsSL https://raw.githubusercontent.com/txhtxh11/miwifi-toolbox/main/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
-```
-
-> 注意：`cdn.jsdelivr.net` 的 `@main` 缓存可能滞后（会拿到旧版脚本），优先用 `gcore.jsdelivr.net` / `fastly.jsdelivr.net` 或 raw。
-> 想固定版本可用提交号：`https://gcore.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@<commit>/miwifi-toolbox.sh`
+> **为什么不用 raw / fastly**：R1D/R2D 自带的 `curl` 是老版 PolarSSL，连 `raw.githubusercontent.com` 和 `fastly.jsdelivr.net` 会 SSL 握手失败（`curl: (35) ... PolarSSL`）。实测能用的是 `gcore.jsdelivr.net` 和 `cdn.jsdelivr.net`。
+> `cdn.jsdelivr.net` 缓存更旧，优先 `gcore`；`@main` 有约 12 小时缓存，急用就换提交号。
 
 > 路由器上的 busybox `wget` 不支持 HTTPS，必须用 `curl`（R1D/R2D 自带）。
 
