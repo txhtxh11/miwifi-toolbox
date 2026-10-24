@@ -112,18 +112,18 @@ detect_env() {
     SMB_CONF="/etc/samba/smb.conf"
   fi
 
-  # WAN 接口
-  # 优先用默认路由实际走的接口（中继模式下会变成无线 STA 接口，如 wl1/apcli0/wwan）
+  # 对外监听接口（LAN + 路由模式下的 WAN；AP/中继模式下两者同一网段，只用 br-lan）
   WAN_IF=""
   default_if=$(ip route 2>/dev/null | awk '/^default/{print $5; exit}')
-  if [ -n "$default_if" ] && [ "$default_if" != "br-lan" ] && [ -e "/sys/class/net/$default_if" ]; then
+  wan_uci=$(uci get network.wan.ifname 2>/dev/null)
+  [ -z "$wan_uci" ] && wan_uci=$(uci get network.wan.device 2>/dev/null)
+  if [ -n "$wan_uci" ] && [ -e "/sys/class/net/$wan_uci" ]; then
+    WAN_IF="$wan_uci"
+  elif [ -n "$default_if" ] && [ "$default_if" != "br-lan" ] && [ -e "/sys/class/net/$default_if" ]; then
     WAN_IF="$default_if"
+  else
+    WAN_IF="br-lan"   # AP/中继模式：没有独立 WAN，桥接在主网里
   fi
-  if [ -z "$WAN_IF" ]; then
-    WAN_IF=$(uci get network.wan.ifname 2>/dev/null)
-    [ -z "$WAN_IF" ] && WAN_IF=$(uci get network.wan.device 2>/dev/null)
-  fi
-  [ -z "$WAN_IF" ] && WAN_IF="eth0.2"
 
   # WAN 防火墙 zone 索引（R1D/R2D 一般都是 1，但按名字查找更稳）
   WAN_ZONE=""
@@ -219,10 +219,10 @@ show_status() {
   if [ "$fw" = "ACCEPT" ]; then ok "WAN 防火墙已放行 (zone[$WAN_ZONE].input=ACCEPT)"; else warn "WAN 防火墙未放行 (当前: ${fw:-未知})"; fi
 
   # Samba 监听
-  if [ -n "$SMB_TPL" ] && grep -q "interfaces *= *br-lan.*$WAN_IF" "$SMB_TPL" 2>/dev/null; then
-    ok "Samba 模板已监听 WAN ($WAN_IF)"
+  if [ -n "$SMB_TPL" ] && grep -qE "interfaces[[:space:]]*=.*($WAN_IF|br-lan)" "$SMB_TPL" 2>/dev/null; then
+    ok "Samba 监听接口: $(grep -E 'interfaces[[:space:]]*=' "$SMB_TPL" | head -1 | sed 's/.*= *//')"
   else
-    warn "Samba 未监听 WAN"
+    warn "Samba 监听配置未包含 $WAN_IF"
   fi
   if netstat -lntp 2>/dev/null | grep -q ':445'; then
     ok "445 端口监听: $(netstat -lntp 2>/dev/null | grep ':445' | awk '{print $4}' | tr '\n' ' ')"
@@ -391,10 +391,14 @@ do_lan_access() {
 
   if [ -n "$SMB_TPL" ]; then
     backup_file "$SMB_TPL"
-    sed -i "s|^[[:space:]]*interfaces[[:space:]]*=.*|	interfaces = br-lan $WAN_IF|" "$SMB_TPL"
-    ok "Samba 模板已改为 br-lan $WAN_IF"
+    if [ "$WAN_IF" = "br-lan" ]; then
+      sed -i "s|^[[:space:]]*interfaces[[:space:]]*=.*|	interfaces = br-lan|" "$SMB_TPL"
+    else
+      sed -i "s|^[[:space:]]*interfaces[[:space:]]*=.*|	interfaces = br-lan $WAN_IF|" "$SMB_TPL"
+    fi
+    ok "Samba 监听接口已设为: $(grep -E 'interfaces[[:space:]]*=' "$SMB_TPL" | head -1 | sed 's/.*= *//')"
   else
-    warn "未找到 smb.conf.template，跳过 Samba WAN 配置"
+    warn "未找到 smb.conf.template，跳过 Samba 监听配置"
   fi
 
   /etc/init.d/samba restart >/dev/null 2>&1 && ok "Samba 已重启" || warn "Samba 重启失败"
