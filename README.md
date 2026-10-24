@@ -9,7 +9,7 @@
 | 1 | 状态查询 | 一键检查所有配置是否生效 |
 | 2 | Entware + nano + 开机挂载 | 把 `/opt` 绑到硬盘，装 Entware/nano，配置 PATH 和 `/etc/rc.local` 开机自动挂载 |
 | 3 | 内网访问 | 放行 WAN 防火墙 + 让 Samba 监听 WAN，二级路由下的设备可访问后台和硬盘 |
-| 4 | 全盘共享 | 新增 `[R1D]`/`[R2D]` 共享（`/userdisk/data`），guest 免登录可读写；用 `veto` 屏蔽小米的 3 个隐藏目录 |
+| 4 | 全盘共享 | 新增 `[R1D]`/`[R2D]` 共享（`/userdisk/data`），guest 免登录可读写；用 `veto` 屏蔽小米的隐藏目录（`.filetransfer_tmp`/`.systemconfig`/`.upload_tmp`/`.sysapihttpd`/`.swapfiles`/`mixbox`/`lost+found`/`ThunderDB`） |
 | 5 | 安装 MIXBOX | 自动选择安装位置（`/userdisk` 或 `/extdisks/sda1`） |
 | 6 | 更新 MIXBOX | 官方 update.sh |
 | 7 | 卸载 MIXBOX | 官方 uninstall.sh |
@@ -20,7 +20,7 @@
 ## 一键运行（SSH 到路由器）
 
 ```sh
-curl -kfsSL https://cdn.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@main/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
+curl -kfsSL https://gcore.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@main/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
 ```
 
 如果 jsdelivr 不通，用 GitHub raw：
@@ -28,6 +28,9 @@ curl -kfsSL https://cdn.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@main/miwifi-tool
 ```sh
 curl -kfsSL https://raw.githubusercontent.com/txhtxh11/miwifi-toolbox/main/miwifi-toolbox.sh -o /tmp/r1d.sh && sh /tmp/r1d.sh
 ```
+
+> 注意：`cdn.jsdelivr.net` 的 `@main` 缓存可能滞后（会拿到旧版脚本），优先用 `gcore.jsdelivr.net` / `fastly.jsdelivr.net` 或 raw。
+> 想固定版本可用提交号：`https://gcore.jsdelivr.net/gh/txhtxh11/miwifi-toolbox@<commit>/miwifi-toolbox.sh`
 
 > 路由器上的 busybox `wget` 不支持 HTTPS，必须用 `curl`（R1D/R2D 自带）。
 
