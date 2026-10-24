@@ -123,21 +123,30 @@ R2D 有两种共享方式，任选：
 
 ## MIXBOX 源（防上游删库）
 
-MIXBOX 真正的文件仓是 [monlor/mbfiles](https://github.com/monlor/mbfiles)（约 4GB），上游一旦删库/改名，安装和插件下载都会失效。本脚本默认走**自己的 fork**：
+官方安装命令里的 `${MB_URL}` 指向 [monlor/mbfiles](https://github.com/monlor/mbfiles)，**所有东西都在这个仓库里**：
+
+| 内容 | 大小 |
+|---|---|
+| `install.sh` / `update.sh` / `install_gh*.sh` | 各 2~4 KB（就几个脚本） |
+| `appstore/` 插件包（140 个，按 4 种架构） | 约 283 MB |
+| `appsbin/` 插件二进制（41 个，含 v2ray/kodexplorer 等） | 约 194 MB |
+
+当前版本内容合计约 **477 MB**；GitHub 页面显示的仓库大小约 4 GB，是把历史提交一起算进去的结果。
+
+上游一旦删库/改名，安装和插件下载都会失效，所以本脚本默认走**自己的 fork**：
 
 | 用途 | 地址 |
 |---|---|
 | 文件/插件仓（脚本默认） | `https://gcore.jsdelivr.net/gh/txhtxh11/mbfiles` |
-| 框架说明仓 fork | https://github.com/txhtxh11/mixbox |
 | 上游（仅回退用） | `https://gcore.jsdelivr.net/gh/monlor/mbfiles` |
 
 - 安装/更新时先试 fork，失败自动回退上游；
 - 装完会把 MIXBOX 的插件源 `mixbox.main.url` 固定到 fork，之后 `mixbox` 里装插件也从 fork 拉；
 - 手动改回/改动：
   ```sh
-  /etc/mixbox/bin/mbdb set mixbox.main.url https://gcore.jsdelivr.net/gh/txhtxh11/mbfiles
+  /etc/mixbox/bin/mbdb set mixbox.main.url=https://gcore.jsdelivr.net/gh/txhtxh11/mbfiles
   ```
-- 卸载改用安装目录自带的 `scripts/uninstall.sh`，不再依赖上游仓库路径。
+- 卸载改用安装目录自带的 `scripts/uninstall.sh`：官方文档里的 `monlor/MIXBOX/apps/mixbox/scripts/uninstall.sh` 上游已删除，现在是 404。
 
 ## 注意事项
 
